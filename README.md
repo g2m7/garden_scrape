@@ -1,206 +1,180 @@
-# Tea Garden Scraper - Automated Data Acquisition System
+# Tea Garden Data Manager
 
-End-to-end pipeline for extracting, cleaning, and standardizing tea garden data from multiple sources.
+Unified pipeline for extracting, processing, and managing tea garden contact data across Assam, West Bengal, and Tripura.
 
-## Features
-
-- **Local file ingestion**: PDF, CSV, Excel files
-- **Web scraping**: With automatic authentication detection and fallback
-- **Geospatial extraction**: Google Maps API integration for estate discovery
-- **Visual verification**: Automatic satellite imagery capture
-- **Schema standardization**: Auto-maps varied column names to standard schema
-- **Workforce filtering**: Configurable range (default: 26-49 workers)
-- **Deduplication**: Removes duplicates based on name + phone
-- **Export formats**: CSV, Excel (with summary sheet)
-
-## Installation
+## Quick Start
 
 ```bash
 # Install dependencies
 uv sync
 
-# Or with pip
-pip install crawl4ai pypdf pydantic pandas openpyxl googlemaps shapely selenium python-dotenv
+# Process all source files into the database
+uv run python src/run.py process
+
+# Launch the TUI to browse, filter, and export
+uv run python src/run.py tui
+
+# Crawl the web to discover emails
+uv run python src/run.py crawl
 ```
 
-## Configuration
+## Commands
 
-Create a `.env` file in the project root:
+| Command | Description |
+|---------|-------------|
+| `uv run python src/run.py init` | Initialize a fresh database |
+| `uv run python src/run.py migrate` | Migrate data from the old schema |
+| `uv run python src/run.py process` | Process all source files into DB |
+| `uv run python src/run.py crawl` | Crawl the web for tea garden emails |
+| `uv run python src/run.py tui` | Launch the interactive TUI |
+| `uv run python src/run.py stats` | Show database statistics |
+| `uv run python src/run.py export` | Export to XLSX (with filters) |
+| `uv run python src/run.py run-all` | Run all steps: init → migrate → process → crawl |
 
-```bash
-# Required for maps mode
-GOOGLE_MAPS_API_KEY=your_api_key_here
-```
+## Data Sources
 
-Get a Google Maps API key from: https://developers.google.com/maps/documentation/places/web-service/get-api-key
+The system processes these files from `data/`:
 
-## Usage
+| File | Type | Records | What it provides |
+|------|------|---------|-----------------|
+| `Tea Estates.xlsx` | XLSX | 173 | Dibrugarh estates with area in Bigha |
+| `Tea Estates number required.xlsx` | XLSX | 84 | Dibrugarh estates with phone numbers |
+| `Grower_Details_Report_TINSUKIA_pdf823(1).xlsx` | XLSX | 106 | Tinsukia small grower details |
+| `email assam.dooars teaestate.xlsx` | XLSX | 138 | Email addresses for Assam & Dooars estates |
+| `Tea-Directory-Assam.xls` | XLS | 45 | Tea Board Assam directory |
+| `Tea Directory-Assam.pdf` | PDF | 2111 | Tea Board Assam directory (PDF) |
+| `Tea Directory-West Bengal.pdf` | PDF | 1269 | Tea Board West Bengal directory |
+| `Tripura Tea Gardens Tea Board.pdf` | PDF | — | Tripura tea gardens |
 
-### Local File Mode
+## Database Schema
 
-```bash
-# CSV file
-python src/main.py --mode=local --source-file=data/gardens.csv --output=results.csv
-
-# PDF file
-python src/main.py --mode=local --source-file=data/report.pdf --output=results.xlsx
-```
-
-### Web Scraping Mode
-
-```bash
-# Scrape specific URLs
-python src/main.py --mode=web --urls=https://example.com/gardens --output=results.csv
-```
-
-### Geospatial Maps Mode (New)
-
-Search for tea gardens using Google Maps API:
-
-```bash
-# Search specific districts
-python src/main.py --mode=maps --districts="Dibrugarh,Jorhat,Tinsukia" --output=geospatial_master.csv
-
-# Search all districts
-python src/main.py --mode=maps --districts="all" --output=geospatial_master.csv
-
-# With custom area thresholds
-python src/main.py --mode=maps --districts="Dibrugarh" --min-area=0.3 --max-area=5.0 --output=results.csv
-
-# Without screenshots (faster)
-python src/main.py --mode=maps --districts="Dibrugarh" --no-screenshots --output=results.csv
-```
-
-**Simple runner script:**
-```bash
-python src/run_maps.py
-```
-
-### Auto Mode (Detects Source Type)
-
-```bash
-python src/main.py --source-file=data/gardens.csv --output=results.csv
-```
-
-### Advanced Options
-
-```bash
-python src/main.py \
-  --mode=local \
-  --source-file=data/gardens.csv \
-  --output=results.xlsx \
-  --format=excel \
-  --min-workforce=26 \
-  --max-workforce=49 \
-  --verbose
-```
-
-## Command Line Arguments
-
-| Argument | Description |
-|----------|-------------|
-| `--mode` | `local`, `web`, `auto`, or `maps` (default: auto) |
-| `--source-file` | Path to local file (PDF, CSV, Excel) |
-| `--urls` | URLs to scrape (space-separated) |
-| `--fallback-file` | Local file if web scraping fails |
-| `--output` | Output file path (default: output/tea_gardens.csv) |
-| `--format` | `csv`, `excel`, or `both` (default: csv) |
-| `--min-workforce` | Minimum workforce (default: 26) |
-| `--max-workforce` | Maximum workforce (default: 49) |
-| `--verbose` | Enable verbose logging |
-| **Maps Mode Arguments** | |
-| `--districts` | Comma-separated district names or `all` |
-| `--api-key` | Google Maps API key (overrides env var) |
-| `--min-area` | Minimum estate area in km² (default: 0.5) |
-| `--max-area` | Maximum estate area in km² (default: 3.0) |
-| `--workforce-multiplier` | Workers per km² (default: 25.0) |
-| `--no-screenshots` | Disable visual verification screenshots |
-| `--clear-cache` | Clear cached geometry data |
-
-## Input Schema
-
-The system auto-maps these column variations:
-
-| Standard Field | Recognized As |
-|----------------|---------------|
-| `estate_name` | Name, Estate, Garden, Tea Garden, Property, Plantation |
-| `workforce_count` | Workforce, Staff, Workers, Employees, Strength, Labour |
-| `primary_phone` | Phone, Mobile, Telephone, Contact, Phone Number |
-| `contact_person` | Manager, Owner, Contact Person, In-Charge, Agent |
-
-## Output Schema
+The SQLite database (`tea_gardens.db`) stores gardens with these key fields:
 
 | Field | Description |
 |-------|-------------|
-| `estate_id` | Unique identifier (UUID) |
-| `estate_name` | Standardized garden name |
-| `workforce_count` | Verified worker count |
-| `primary_phone` | Formatted phone number |
-| `contact_person` | Manager/Owner name |
-| `source_origin` | Data source identifier |
-| `is_inferred` | Whether data was inferred |
-| `latitude` | Estate latitude (maps mode) |
-| `longitude` | Estate longitude (maps mode) |
-| `area_km2` | Physical area in km² (maps mode) |
-| `place_id` | Google Maps place_id (maps mode) |
-| `address` | Formatted address (maps mode) |
-| `visual_proof` | Screenshot path (if enabled) |
-| `verification_status` | `verified`, `inferred`, or `pending` |
+| `name` | Tea garden/estate name |
+| `phone` | Contact phone number |
+| `email` | Email address |
+| `email_confidence` | Email confidence score (0–1) |
+| `website` | Website URL |
+| `address` | Full address |
+| `pincode` | Postal code |
+| `district` | District name |
+| `state` | State (Assam, West Bengal, Tripura) |
+| `area_hectares` / `area_bigha` | Estate area |
+| `confidence_score` | Overall data quality (0–1) |
+| `data_source` | Where this record came from |
+| `data_freshness` | When data was collected |
+| `google_url` | Google Maps link |
+| `latitude` / `longitude` | GPS coordinates |
+
+## TUI
+
+Launch with `uv run python src/run.py tui`.
+
+### Controls
+
+| Key | Action |
+|-----|--------|
+| `/` | Focus search bar |
+| `Enter` | View garden details |
+| `E` | Export filtered results to XLSX |
+| `R` | Refresh data |
+| `F` | Toggle filter bar |
+| `PageUp` / `PageDown` | Paginate through results |
+| `Home` / `End` | Jump to first/last page |
+| `Q` | Quit |
+
+### Filtering
+
+The filter bar lets you narrow by:
+- **Free text search** — matches name, address, email, phone
+- **District** — dropdown of all districts in DB
+- **Source** — filter by data origin (e.g. Tea Board PDF, XLSX file)
+- **Has Phone** — show only records with/without phone numbers
+- **Has Email** — show only records with/without email addresses
+
+## Export
+
+Export from CLI or TUI:
+
+```bash
+# Export everything
+uv run python src/run.py export --output output/all_gardens.xlsx
+
+# Filter by district
+uv run python src/run.py export --output output/dibrugarh.xlsx --district Dibrugarh
+
+# Only gardens with email
+uv run python src/run.py export --output output/with_email.xlsx --has-email
+
+# Only gardens with phone from West Bengal
+uv run python src/run.py export --output output/wb_phones.xlsx --state "West Bengal" --has-phone
+```
+
+The XLSX output includes three sheets:
+- **Gardens** — all matching records
+- **Summary** — total count, phone/email stats, average confidence
+- **By District** — breakdown by district
+
+## Email Crawler
+
+The crawler searches Google and estate websites to find email addresses:
+
+```bash
+# Default: process all gardens missing emails, batch of 50
+uv run python src/run.py crawl
+
+# Smaller batches (slower but safer)
+uv run python src/run.py crawl --batch-size 20 --min-confidence 0.3
+```
+
+For each garden without an email:
+1. Searches Google for `"[garden name]" tea estate email contact`
+2. Extracts emails from search results using regex
+3. Scores confidence based on name-domain match and page content
+4. Saves the best email above the minimum confidence threshold
+
+The crawler uses `crawl4ai` (already a dependency). It logs all attempts in the `email_crawl_log` table.
 
 ## Project Structure
 
 ```
 src/
-├── main.py                 # CLI entry point
-├── models.py               # Pydantic models
-├── pipeline.py             # Processing pipeline
-├── ingestion.py            # File/web ingestion
-├── parsers.py              # PDF/table parsing
-├── config.py               # Configuration management
-├── geospatial_extractor.py # Google Maps integration
-├── visual_check.py         # Screenshot verification
-├── run_maps.py             # Maps mode runner script
-└── scrapers/               # Web scrapers
+├── run.py              # Unified CLI entry point
+├── db_v2.py            # Database schema, queries, export
+├── process_sources.py  # Process all source files into DB
+├── email_crawler.py    # Web crawler for email discovery
+├── migrate_db.py       # Migrate old schema data
+├── tui/
+│   ├── app.py          # Textual TUI application
+│   └── patch_rich.py   # Windows encoding fix
+├── main.py             # Legacy CLI (maps mode)
+├── models.py           # Pydantic data models
+├── pipeline.py         # Processing pipeline
+├── parsers.py          # PDF/table parsing
+├── config.py           # Configuration
+└── scrapers/           # Web scrapers
 ```
 
-## Supported Districts (Assam)
+## Dependencies
 
-The following districts are pre-configured for geospatial searches:
+All managed via `uv`:
 
-| District | Center (Lat, Lng) | Radius (km) |
-|----------|-------------------|-------------|
-| Dibrugarh | 27.4844°N, 94.9112°E | 50 |
-| Jorhat | 26.7396°N, 94.2038°E | 45 |
-| Tinsukia | 27.4934°N, 95.3560°E | 55 |
-| Sivasagar | 26.9833°N, 94.6333°E | 40 |
-| Golaghat | 26.5167°N, 93.9667°E | 45 |
-| Kamrup | 26.1167°N, 91.5833°E | 50 |
-| Sonitpur | 26.6167°N, 92.9167°E | 55 |
-| Cachar | 24.8833°N, 92.7833°E | 50 |
-| Nagaon | 26.3500°N, 92.6833°E | 45 |
-| Lakhimpur | 27.2333°N, 94.1000°E | 50 |
-
-## Geospatial Features
-
-### Area-Based Workforce Estimation
-
-The system estimates workforce from physical estate area:
 ```
-Estimated Workers = Area_KM² × Workforce_Multiplier (default: 25)
+crawl4ai     — Web crawling (email discovery)
+textual      — Terminal UI
+pandas       — Data processing
+openpyxl     — Excel read/write
+pypdf        — PDF text extraction
+xlrd         — Legacy XLS file reading
+pydantic     — Data validation
 ```
 
-### Visual Verification
+## Configuration
 
-When enabled (`--no-screenshots` flag omitted), the system:
-1. Opens Google Maps at estate coordinates
-2. Switches to satellite view
-3. Captures screenshot of the area
-4. Saves to `output/screenshots/`
+For Google Maps scraping (optional, legacy mode), create `.env`:
 
-Screenshots are stored for manual verification of estate boundaries.
-
-## Example Output
-
-The Excel output includes two sheets:
-- **Validated_Gardens**: Filtered, standardized records
-- **Summary**: Statistics (total records, unique gardens, with phone, inferred count)
+```
+GOOGLE_MAPS_API_KEY=your_key_here
+```

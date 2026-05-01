@@ -16,10 +16,14 @@ dependencies = [
     # Visual verification dependencies
     "selenium>=4.15.0",
     "webdriver-manager>=4.0.0",
+    "textual>=8.2.5",
+    "xlrd>=2.0.2",
 ]
 
 [project.scripts]
 tea-scraper = "src.main:main"
+tea-tui = "src.tui.app:main"
+tea-run = "src.run:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]

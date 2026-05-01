@@ -1,5 +1,43 @@
 # AGENTS.md — Project Instructions
 
+## Package Manager: uv
+
+**This project uses [uv](https://docs.astral.sh/uv/) as the Python package and project manager. Always use `uv` for all Python operations.**
+
+### Rules
+
+- **Always use `uv add <package>`** to add dependencies (never `pip install`)
+- **Always use `uv run`** to run scripts and commands (never bare `python`)
+- **Always use `uv remove <package>`** to remove dependencies
+- **Use `uv sync`** to install from lockfile after pulling changes
+- **Use `uvx <tool>`** for one-off CLI tools (e.g. `uvx ruff check`)
+
+### Examples
+
+```bash
+# Add a dependency
+uv add textual
+
+# Remove a dependency
+uv remove selenium
+
+# Run a script
+uv run python src/run.py tui
+
+# Run inline Python
+uv run python -c "from src.db_v2 import init_db; init_db()"
+
+# Run a one-off tool
+uvx ruff check src/
+```
+
+### Do NOT do these
+
+- Never use `pip install`
+- Never use bare `python` or `python3` (use `uv run python`)
+- Never manually create venvs (uv manages them)
+- Never edit `uv.lock` by hand
+
 ## Data Source Tracking
 
 **IMPORTANT:** Whenever a data file in `data/` is processed (ingested, parsed, enriched, or merged into the DB), update `data/DATA_SOURCES.md` immediately. Change the file's status from "Not Processed" to "Processed" and fill in the actual record count and notes.
@@ -14,7 +52,18 @@ The tracking file lives at: `data/DATA_SOURCES.md`
 - **Test Data** — synthetic/sample data for testing
 
 ### When to update
-- After running `ingestion.py`, `parsers.py`, or any `run_*.py` script against a data file
+- After running `process_sources.py` or any pipeline script against a data file
 - After merging data from a file into `tea_gardens.db`
 - After generating output files (mark as **Output**)
 - When adding new data files to `data/`
+
+## Project Commands
+
+```bash
+uv run python src/run.py init       # Initialize database
+uv run python src/run.py process    # Process all source files into DB
+uv run python src/run.py crawl      # Crawl web for tea garden emails
+uv run python src/run.py tui        # Launch interactive TUI
+uv run python src/run.py stats      # Show database statistics
+uv run python src/run.py export     # Export to XLSX
+```
