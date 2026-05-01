@@ -1,0 +1,29 @@
+[project]
+name = "tea-garden-scraper"
+version = "1.0.0"
+description = "Automated Tea Garden Data Acquisition System"
+requires-python = ">=3.11"
+dependencies = [
+    "crawl4ai>=0.4.0",
+    "pypdf>=5.0.0",
+    "pydantic>=2.10.0",
+    "pandas>=2.2.0",
+    "openpyxl>=3.1.0",
+    # Geospatial dependencies
+    "googlemaps>=4.10.0",
+    "shapely>=2.0.0",
+    "python-dotenv>=1.0.0",
+    # Visual verification dependencies
+    "selenium>=4.15.0",
+    "webdriver-manager>=4.0.0",
+]
+
+[project.scripts]
+tea-scraper = "src.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

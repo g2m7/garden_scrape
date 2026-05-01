@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.env
+
+# Output
+output/
+*.csv
+*.json
+!pyproject.toml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
