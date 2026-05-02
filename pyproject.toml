@@ -18,6 +18,11 @@ dependencies = [
     "webdriver-manager>=4.0.0",
     "textual>=8.2.5",
     "xlrd>=2.0.2",
+    "curl-cffi>=0.15.0",
+    "beautifulsoup4>=4.14.3",
+    "duckduckgo-search>=8.1.1",
+    "playwright-stealth>=2.0.3",
+    "rebrowser-playwright>=1.52.0",
 ]
 
 [project.scripts]
