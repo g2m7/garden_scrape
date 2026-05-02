@@ -100,19 +100,42 @@ def score_email(email: str, garden_name: str, page_text: str) -> float:
     return min(score, 1.0)
 
 
+def extract_urls_from_serp(text: str) -> list[str]:
+    if not text:
+        return []
+    urls = []
+    skip_hosts = {
+        "google.com", "google.co.in", "googleapis.com", "gstatic.com",
+        "youtube.com", "accounts.google.com", "support.google.com",
+        "maps.google.com", "play.google.com", "policies.google.com",
+    }
+    for m in re.finditer(r'\[([^\]]*)\]\((https?://[^)]+)\)', text):
+        url = m.group(2)
+        host = url.split("/")[2].split(":")[0] if len(url) > 8 else ""
+        if any(d in host for d in skip_hosts):
+            continue
+        if "/url?q=" in url:
+            try:
+                from urllib.parse import urlparse, parse_qs
+                qs = parse_qs(urlparse(url).query)
+                url = qs.get("q", [url])[0]
+            except Exception:
+                pass
+        urls.append(url)
+    return list(dict.fromkeys(urls))[:8]
+
+
 def build_google_dork_urls(garden_name: str, district: str = "", state: str = "") -> list[str]:
     queries = [
-        f'"{garden_name}" email',
-        f'"{garden_name}" contact email',
-        f'"{garden_name}" {district} tea estate email' if district else None,
-        f'"{garden_name}" tea estate manager email',
-        f'"{garden_name}" site:teaboard.gov.in' if "assam" in state.lower() or not state else None,
-        f'"{garden_name}" "@" tea garden contact',
+        f'"{garden_name}" email contact',
+        f'"{garden_name}" site:vakilsearch.com OR site:zaubacorp.com OR site:tofler.in OR site:indiacompanyinfo.com',
+        f'"{garden_name}" {district} tea estate contact' if district else None,
+        f'"{garden_name}" site:teaboard.gov.in' if "assam" in state.lower() else None,
     ]
     urls = []
     for q in queries:
         if q:
-            urls.append(f"https://www.google.com/search?q={quote_plus(q)}")
+            urls.append(f"https://www.google.com/search?q={quote_plus(q)}&num=10&gl=in")
     return urls
 
 
@@ -126,15 +149,17 @@ async def crawl_for_emails(
 
     results = []
     all_emails = {}
+    collected_result_urls = []
 
     browser_config = BrowserConfig(headless=True, verbose=False)
-    urls = build_google_dork_urls(garden_name, district, state)
+    serp_urls = build_google_dork_urls(garden_name, district, state)
 
     null_out = io.StringIO()
     null_err = io.StringIO()
 
     async with AsyncWebCrawler(config=browser_config) as crawler:
-        for url in urls:
+
+        for url in serp_urls:
             try:
                 with redirect_stdout(null_out), redirect_stderr(null_err):
                     result = await crawler.arun(url=url)
@@ -155,10 +180,47 @@ async def crawl_for_emails(
                             "garden_id": garden_id,
                         }
 
-                await asyncio.sleep(1.5)
+                result_urls = extract_urls_from_serp(text)
+                collected_result_urls.extend(result_urls)
+
+                await asyncio.sleep(2)
 
             except Exception as e:
-                logger.debug(f"  Crawl error for {url[:60]}: {e}")
+                logger.debug(f"  SERP error for {url[:80]}: {e}")
+                continue
+
+        seen = set()
+        unique_result_urls = []
+        for u in collected_result_urls:
+            if u not in seen:
+                seen.add(u)
+                unique_result_urls.append(u)
+
+        for result_url in unique_result_urls[:5]:
+            try:
+                with redirect_stdout(null_out), redirect_stderr(null_err):
+                    page_result = await crawler.arun(url=result_url)
+
+                if not page_result or not hasattr(page_result, 'markdown') or not page_result.markdown:
+                    continue
+
+                page_text = page_result.markdown.raw_markdown if hasattr(page_result.markdown, 'raw_markdown') else str(page_result.markdown)
+
+                page_emails = extract_emails(page_text)
+                for email in page_emails:
+                    if email not in all_emails:
+                        confidence = score_email(email, garden_name, page_text)
+                        all_emails[email] = {
+                            "email": email,
+                            "confidence": confidence,
+                            "source_url": result_url,
+                            "garden_id": garden_id,
+                        }
+
+                await asyncio.sleep(2)
+
+            except Exception as e:
+                logger.debug(f"  Page error for {result_url[:80]}: {e}")
                 continue
 
         for email, entry in all_emails.items():
